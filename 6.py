@@ -335,172 +335,23 @@ class Product(DSPSIdFieldsModel, GetAdminUrl, BaseApiDataClass, ModelDiffMixin):
                         last_status = last_status.strftime('%d/%m/%Y')
                         current_status = current_status.strftime('%d/%m/%Y')
                         # Notifica a Comunicação de mudança na data de lançamento
-                        chat_ids = {
-                            'lider_atendimento': LIDER_ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                            'atendimento': ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                            'comunicacao': COMUNICACAO_TELEGRAM_CHAT_ID,
-                            'conteudo': CONTEUDO_TELEGRAM_CHAT_ID,
-                            'financeiro': FINANCEIRO_TELEGRAM_CHAT_ID,
-                            'dev': DEV_TELEGRAM_CHAT_ID,
-                        }
-                        if not SEND_TELEGRAM_NOTIFICATIONS:
-                            log_notification(
-                                'nenhuma notificação foi enviada porque SEND_TELEGRAM_NOTIFICATIONS está definida como False.')
-                            return
-                        import requests
-                        import urllib.parse
-                        data = {
-                            'bot_token': bot_token,
-                            'chat_id': chat_ids.get(chat_id),
-                            'text': urllib.parse.quote(text)
-                        }
-                        try:
-                            response = send_message(**data)
-                            log_notification(response.json())
-                        except Exception as e:
-                            log_error(e)
-                            chat_ids = {
-                                'lider_atendimento': LIDER_ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                                'atendimento': ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                                'comunicacao': COMUNICACAO_TELEGRAM_CHAT_ID,
-                                'conteudo': CONTEUDO_TELEGRAM_CHAT_ID,
-                                'financeiro': FINANCEIRO_TELEGRAM_CHAT_ID,
-                                'dev': DEV_TELEGRAM_CHAT_ID,
-                            }
-                            if not SEND_TELEGRAM_NOTIFICATIONS:
-                                log_notification(
-                                    'nenhuma notificação foi enviada porque SEND_TELEGRAM_NOTIFICATIONS está definida como False.')
-                                return
-                            import requests
-                            import urllib.parse
-                            data = {
-                                'bot_token': bot_token,
-                                'chat_id': chat_ids.get(chat_id),
-                                'text': urllib.parse.quote(text)
-                            }
-                            try:
-                                response = send_message(**data)
-                                log_notification(response.json())
-                            except Exception as e:
-                                log_error(e)
+                        notify_on_telegram('comunicacao',
+                                           f"{str1} **{self.title} ({self.upc}) - {self.main_holder}** {str2} {current_status}")
+                        notify_on_telegram('atendimento',
+                                           f"{str1} **{self.title} ({self.upc}) - {self.main_holder}** {str2} {current_status}")
                     changes += f'\n{pointing_arrow_emoji} {Product._meta.get_field(field).verbose_name}: {red_times_emoji} {last_status} {green_check_emoji} {current_status}'
                 if self.projects:  # Só notifica o conteúdo se o produto tiver projeto atribuído
-                    chat_ids = {
-                        'lider_atendimento': LIDER_ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                        'atendimento': ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                        'comunicacao': COMUNICACAO_TELEGRAM_CHAT_ID,
-                        'conteudo': CONTEUDO_TELEGRAM_CHAT_ID,
-                        'financeiro': FINANCEIRO_TELEGRAM_CHAT_ID,
-                        'dev': DEV_TELEGRAM_CHAT_ID,
-                    }
-                    if not SEND_TELEGRAM_NOTIFICATIONS:
-                        log_notification(
-                            'nenhuma notificação foi enviada porque SEND_TELEGRAM_NOTIFICATIONS está definida como False.')
-                        return
-                    import requests
-                    import urllib.parse
-                    data = {
-                        'bot_token': bot_token,
-                        'chat_id': chat_ids.get(chat_id),
-                        'text': urllib.parse.quote(text)
-                    }
-                    try:
-                        response = send_message(**data)
-                        log_notification(response.json())
-                    except Exception as e:
-                        log_error(e)
-                chat_ids = {
-                    'lider_atendimento': LIDER_ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                    'atendimento': ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                    'comunicacao': COMUNICACAO_TELEGRAM_CHAT_ID,
-                    'conteudo': CONTEUDO_TELEGRAM_CHAT_ID,
-                    'financeiro': FINANCEIRO_TELEGRAM_CHAT_ID,
-                    'dev': DEV_TELEGRAM_CHAT_ID,
-                }
-                if not SEND_TELEGRAM_NOTIFICATIONS:
-                    log_notification(
-                        'nenhuma notificação foi enviada porque SEND_TELEGRAM_NOTIFICATIONS está definida como False.')
-                    return
-                import requests
-                import urllib.parse
-                data = {
-                    'bot_token': bot_token,
-                    'chat_id': chat_ids.get(chat_id),
-                    'text': urllib.parse.quote(text)
-                }
-                try:
-                    response = send_message(**data)
-                    log_notification(response.json())
-                except Exception as e:
-                    log_error(e)
+                    notify_on_telegram('conteudo',
+                                       f"{_('Product')} **{self.title} ({self.upc}) - {self.main_holder}** {str3}\n{changes}")
+                notify_on_telegram('atendimento',
+                                   f"{_('Product')} **{self.title} ({self.upc}) - {self.main_holder}** {str3}\n{changes}")
                 # Notificação por sininho e email
                 notification_code = SystemNotification.get_product_alteration_code()
                 recipients = User.objects.filter(
                     user_user_profile__profilesystemnotification__notification__code=notification_code)
                 urgency = 'warning' if release_date - timezone.now().date() < timezone.timedelta(days=8) else 'info'
-                try:
-                    notification = SystemNotification.objects.get(code=notification_code)
-                except SystemNotification.DoesNotExist as e:
-                    print(e)
-                verb = notification.verb + f' {extra_info}' if extra_info else notification.verb
-                try:
-                    email_url = '{}{}'.format('SITE_URL', url)
-                    if len(recipients) > 0:
-                        email_logo = recipients[0].user_user_profile.get_master_client_email_logo_url()
-                        try:
-                            email_master_client_name = recipients[0].user_user_profile.get_master_client().name
-                        except AttributeError:
-                            email_master_client_name = 'FRONT_END__SITE_NAME'
-                        if author is None:
-                            author = recipients[0].user_user_profile.get_default_system_master_client()
-                            # No caso extremo de não haver um master client no sistema, colocamos um autor qualquer
-                            if not author:
-                                print('Não há um master client no sistema. Favor corrigir.')
-                                author = recipients[0]
-                        email_description = f'{author} - {verb}: {action_object}' if action_object else f'{author} - {verb}'
-                        # bell notification
-                        notify.send(sender=author, recipient=recipients, verb=verb, action_object=action_object,
-                                    url=url,
-                                    emailed=True, level=level)
-                        # todo quando o ator da notificação for um usuário, colocar o nome dele como ator pra melhorar a legibilidade
-
-                        # email notification management
-                        email_support = 'Any questions? Email us!'
-                        email_support_mail = 'SUPPORT_MAIL'
-                        email_site_name = 'FRONT_END__SITE_NAME'
-                        context = {
-                            'url': email_url,
-                            'email_title': email_site_name,
-                            'email_subject': f'{email_site_name} - {notification.description}',
-                            'email_description': email_description,
-                            'email_button_text': 'Go',
-                            'email_support': email_support,
-                            'email_support_mail': email_support_mail,
-                            'email_site_name': email_site_name,
-                            'publisher_logo_path': email_site_name,
-                            'email_logo': email_logo,
-                            'email_master_client_name': email_master_client_name,
-                        }
-                        email_recipients = []
-                        for recipient in recipients:
-                            email_recipients.append(recipient.email)
-
-                            if recipient.email is not None and recipient.email != '':
-                                email_recipients.append(recipient.email)
-                        try:
-                            mail.send(
-                                email_recipients,
-                                # subject=email_subject,
-                                template=level or notification.level,
-                                context=context,
-                            )
-                        except ValidationError as e:
-                            log_error(f'Erro ao enviar email de notificação: {e}\n')
-                    else:
-                        print(f'A notificação: "{verb}" não possui recipientes, e por isso não foi enviada.')
-
-                except Exception as e:
-                    print(e)
+                notify_users(notification_code, recipients, url=reverse('label_catalog:product.list') + str(self.id),
+                             level=urgency, action_object=self)
         except Exception as e:
             log_error(e)
 
@@ -1307,54 +1158,10 @@ class Asset(BaseModel, GetAdminUrl, BaseApiDataClass, ModelDiffMixin):
                 str1 = _('has been altered. These are the changes:')
                 if changes:
                     if has_project:
-                        chat_ids = {
-                            'lider_atendimento': LIDER_ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                            'atendimento': ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                            'comunicacao': COMUNICACAO_TELEGRAM_CHAT_ID,
-                            'conteudo': CONTEUDO_TELEGRAM_CHAT_ID,
-                            'financeiro': FINANCEIRO_TELEGRAM_CHAT_ID,
-                            'dev': DEV_TELEGRAM_CHAT_ID,
-                        }
-                        if not SEND_TELEGRAM_NOTIFICATIONS:
-                            log_notification(
-                                'nenhuma notificação foi enviada porque SEND_TELEGRAM_NOTIFICATIONS está definida como False.')
-                            return
-                        import requests
-                        import urllib.parse
-                        data = {
-                            'bot_token': bot_token,
-                            'chat_id': chat_ids.get(chat_id),
-                            'text': urllib.parse.quote(text)
-                        }
-                        try:
-                            response = send_message(**data)
-                            log_notification(response.json())
-                        except Exception as e:
-                            log_error(e)
-                    chat_ids = {
-                        'lider_atendimento': LIDER_ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                        'atendimento': ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                        'comunicacao': COMUNICACAO_TELEGRAM_CHAT_ID,
-                        'conteudo': CONTEUDO_TELEGRAM_CHAT_ID,
-                        'financeiro': FINANCEIRO_TELEGRAM_CHAT_ID,
-                        'dev': DEV_TELEGRAM_CHAT_ID,
-                    }
-                    if not SEND_TELEGRAM_NOTIFICATIONS:
-                        log_notification(
-                            'nenhuma notificação foi enviada porque SEND_TELEGRAM_NOTIFICATIONS está definida como False.')
-                        return
-                    import requests
-                    import urllib.parse
-                    data = {
-                        'bot_token': bot_token,
-                        'chat_id': chat_ids.get(chat_id),
-                        'text': urllib.parse.quote(text)
-                    }
-                    try:
-                        response = send_message(**data)
-                        log_notification(response.json())
-                    except Exception as e:
-                        log_error(e)
+                        notify_on_telegram('conteudo',
+                                           f"{_('Asset')} **{self.title} ({self.isrc})** {str1}\n{changes}")
+                    notify_on_telegram('atendimento',
+                                       f"{_('Asset')} **{self.title} ({self.isrc})** {str1}\n{changes}")
         except Exception as e:
             log_error(e)
 
@@ -1758,54 +1565,10 @@ class AssetComposerLink(BaseModel):
         pencil_emoji = bytes.decode(b'\xE2\x9C\x8F', 'utf8')
         str1 = _('The composers on')
         str2 = _('have been altered.')
-        chat_ids = {
-            'lider_atendimento': LIDER_ATENDIEMENTO_TELEGRAM_CHAT_ID,
-            'atendimento': ATENDIEMENTO_TELEGRAM_CHAT_ID,
-            'comunicacao': COMUNICACAO_TELEGRAM_CHAT_ID,
-            'conteudo': CONTEUDO_TELEGRAM_CHAT_ID,
-            'financeiro': FINANCEIRO_TELEGRAM_CHAT_ID,
-            'dev': DEV_TELEGRAM_CHAT_ID,
-        }
-        if not SEND_TELEGRAM_NOTIFICATIONS:
-            log_notification(
-                'nenhuma notificação foi enviada porque SEND_TELEGRAM_NOTIFICATIONS está definida como False.')
-            return
-        import requests
-        import urllib.parse
-        data = {
-            'bot_token': bot_token,
-            'chat_id': chat_ids.get(chat_id),
-            'text': urllib.parse.quote(text)
-        }
-        try:
-            response = send_message(**data)
-            log_notification(response.json())
-        except Exception as e:
-            log_error(e)
-            chat_ids = {
-                'lider_atendimento': LIDER_ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                'atendimento': ATENDIEMENTO_TELEGRAM_CHAT_ID,
-                'comunicacao': COMUNICACAO_TELEGRAM_CHAT_ID,
-                'conteudo': CONTEUDO_TELEGRAM_CHAT_ID,
-                'financeiro': FINANCEIRO_TELEGRAM_CHAT_ID,
-                'dev': DEV_TELEGRAM_CHAT_ID,
-            }
-            if not SEND_TELEGRAM_NOTIFICATIONS:
-                log_notification(
-                    'nenhuma notificação foi enviada porque SEND_TELEGRAM_NOTIFICATIONS está definida como False.')
-                return
-            import requests
-            import urllib.parse
-            data = {
-                'bot_token': bot_token,
-                'chat_id': chat_ids.get(chat_id),
-                'text': urllib.parse.quote(text)
-            }
-            try:
-                response = send_message(**data)
-                log_notification(response.json())
-            except Exception as e:
-                log_error(e)
+        notify_on_telegram('conteudo',
+                           f"{pencil_emoji} {str1} **{self.asset}** {str2}")
+        notify_on_telegram('atendimento',
+                           f"{pencil_emoji} {str1} **{self.asset}** {str2}")
         super(AssetComposerLink, self).save()
 
 
@@ -2243,29 +2006,8 @@ def product_project_post_save(sender, instance: ProductProject, created, *args, 
     str3 = _('is available on the private drive')
     str4 = _('Release Date')
     str5 = _('All the tasks related to this project have been released.')
-    chat_ids = {
-        'lider_atendimento': LIDER_ATENDIEMENTO_TELEGRAM_CHAT_ID,
-        'atendimento': ATENDIEMENTO_TELEGRAM_CHAT_ID,
-        'comunicacao': COMUNICACAO_TELEGRAM_CHAT_ID,
-        'conteudo': CONTEUDO_TELEGRAM_CHAT_ID,
-        'financeiro': FINANCEIRO_TELEGRAM_CHAT_ID,
-        'dev': DEV_TELEGRAM_CHAT_ID,
-    }
-    if not SEND_TELEGRAM_NOTIFICATIONS:
-        log_notification('nenhuma notificação foi enviada porque SEND_TELEGRAM_NOTIFICATIONS está definida como False.')
-        return
-    import requests
-    import urllib.parse
-    data = {
-        'bot_token': bot_token,
-        'chat_id': chat_ids.get(chat_id),
-        'text': urllib.parse.quote(text)
-    }
-    try:
-        response = send_message(**data)
-        log_notification(response.json())
-    except Exception as e:
-        log_error(e)
+    notify_on_telegram('conteudo',
+                       f"{str1} {product.get_format_display()} **{product.title} ({product.upc}) - {product.main_holder}** {str3}:\n\n{str4}: {product.release_date}\n\n{str5}")
     # Não existe uma lógica bem definida para classificar um produto como grande. A regra de negócio é: se aparecer a
     #  palavra 'grande' em algum lugar do projeto ou do projeto modelo, o produto é grande.
     product_is_big = 'grande' in project.title.lower() or 'grande' in project.description.lower() or 'grande' in project_model.title.lower() or 'grande' in project_model.description.lower()
@@ -2275,68 +2017,8 @@ def product_project_post_save(sender, instance: ProductProject, created, *args, 
         notification_code = SystemNotification.get_new_common_product_entry_code()
     recipients = User.objects.filter(
         user_user_profile__profilesystemnotification__notification__code=notification_code)
-    try:
-        notification = SystemNotification.objects.get(code=notification_code)
-    except SystemNotification.DoesNotExist as e:
-        print(e)
-    verb = notification.verb + f' {extra_info}' if extra_info else notification.verb
-    try:
-        email_url = '{}{}'.format('SITE_URL', url)
-        if len(recipients) > 0:
-            email_logo = recipients[0].user_user_profile.get_master_client_email_logo_url()
-            try:
-                email_master_client_name = recipients[0].user_user_profile.get_master_client().name
-            except AttributeError:
-                email_master_client_name = 'FRONT_END__SITE_NAME'
-            if author is None:
-                author = recipients[0].user_user_profile.get_default_system_master_client()
-                # No caso extremo de não haver um master client no sistema, colocamos um autor qualquer
-                if not author:
-                    print('Não há um master client no sistema. Favor corrigir.')
-                    author = recipients[0]
-            email_description = f'{author} - {verb}: {action_object}' if action_object else f'{author} - {verb}'
-            # bell notification
-            notify.send(sender=author, recipient=recipients, verb=verb, action_object=action_object, url=url,
-                        emailed=True, level=level)
-            # todo quando o ator da notificação for um usuário, colocar o nome dele como ator pra melhorar a legibilidade
-
-            # email notification management
-            email_support = 'Any questions? Email us!'
-            email_support_mail = 'SUPPORT_MAIL'
-            email_site_name = 'FRONT_END__SITE_NAME'
-            context = {
-                'url': email_url,
-                'email_title': email_site_name,
-                'email_subject': f'{email_site_name} - {notification.description}',
-                'email_description': email_description,
-                'email_button_text': 'Go',
-                'email_support': email_support,
-                'email_support_mail': email_support_mail,
-                'email_site_name': email_site_name,
-                'publisher_logo_path': email_site_name,
-                'email_logo': email_logo,
-                'email_master_client_name': email_master_client_name,
-            }
-            email_recipients = []
-            for recipient in recipients:
-                email_recipients.append(recipient.email)
-
-                if recipient.email is not None and recipient.email != '':
-                    email_recipients.append(recipient.email)
-            try:
-                mail.send(
-                    email_recipients,
-                    # subject=email_subject,
-                    template=level or notification.level,
-                    context=context,
-                )
-            except ValidationError as e:
-                log_error(f'Erro ao enviar email de notificação: {e}\n')
-        else:
-            print(f'A notificação: "{verb}" não possui recipientes, e por isso não foi enviada.')
-
-    except Exception as e:
-        print(e)
+    notify_users(notification_code, recipients, action_object=product,
+                 url=f"{reverse('label_catalog:product.list')}{product.id}")
 
 
 def recheck_product_and_assets_match_dispatch(product_ids: list = "", asset_ids: list = "",
